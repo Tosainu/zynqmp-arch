@@ -20,6 +20,7 @@ source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
         'https://www.xilinx.com/Attachment/0001-Revert-tty-xilinx_uartps-Add-the-id-to-the-console.patch'
         'https://raw.githubusercontent.com/Avnet/Ultra96-PYNQ/v2.6.0/Ultra96/petalinux_bsp_v2/meta-user/recipes-kernel/linux/linux-xlnx/fix_u96v2_pwrseq_simple.patch'
         'add-device-tree-for-ultra96-v2.patch'
+        'use-lima-driver.patch'
         'config'
         'linux-zynqmp.install'
         'linux-zynqmp.preset'
@@ -30,6 +31,7 @@ md5sums=('a0c4e16c9e89f656fbecd1948f49a602'
          '71acbe84eb9d16e3346677efba44d9a1'
          '28402a28c1c2d603067ed0a2ee4aad5a'
          '08b30b280c51fa1b1b7afbc6af9af779'
+         '5ed1e5847ca41c72189ebb532c091097'
          '6ee2fa4e35e8dff6888524fbf9a242a4'
          '9a3f0bc4ae4803f42737878491dd38e7'
          '6ba25cf6d2a58cff1a8d9f4635524b00'
@@ -45,6 +47,7 @@ prepare() {
   patch -Np1 < "../0001-Revert-tty-xilinx_uartps-Add-the-id-to-the-console.patch"
   patch -Np1 < "../fix_u96v2_pwrseq_simple.patch"
   patch -Np1 < "../add-device-tree-for-ultra96-v2.patch"
+  patch -Np1 < "../use-lima-driver.patch"
 
   # add pkgrel to extraversion
   sed -ri "s|^(EXTRAVERSION =)(.*)|\1 \2-${pkgrel}|" Makefile
