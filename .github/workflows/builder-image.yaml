@@ -1,0 +1,35 @@
+name: Builder Image
+on:
+  push:
+    paths:
+      - "ci/builder/Dockerfile"
+      - "**/builder-image.yaml"
+  schedule:
+    - cron: "0 0 * * 1"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: docker.pkg.github.com/tosainu/zynqmp-arch/builder
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Setup multiarch/qemu-user-static
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
+
+      - name: Build Arch Linux ARM image
+        env:
+          DOCKER_BUILDKIT: "1"
+        run: docker build -t $IMAGE_NAME ci/builder
+
+      - name: Push to registry
+        if: github.ref == 'refs/heads/master'
+        env:
+          USERNAME: $GITHUB_ACTOR
+          PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker login docker.pkg.github.com -u "$USERNAME" --password-stdin <<< "$PASSWORD"
+          docker push $IMAGE_NAME
+          rm -rf ~/.docker

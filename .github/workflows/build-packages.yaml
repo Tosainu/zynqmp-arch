@@ -1,0 +1,90 @@
+name: Build Packages
+on:
+  push:
+    paths:
+      - "PKGBUILDs/**"
+      - "ci/*.sh"
+      - "**/build-packages.yaml"
+    branches-ignore:
+      - "skip-ci/**"
+    tags-ignore:
+      - "**"
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@main
+
+      - name: Setup multiarch/qemu-user-static
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
+
+      - name: Setup Arch Linux ARM image
+        env:
+          IMAGE_NAME: docker.pkg.github.com/tosainu/zynqmp-arch/builder
+          USERNAME: $GITHUB_ACTOR
+          PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker login docker.pkg.github.com -u "$USERNAME" --password-stdin <<< "$PASSWORD"
+          docker pull $IMAGE_NAME
+          docker tag $IMAGE_NAME builder
+          rm -rf ~/.docker
+
+      - name: Build
+        run: docker run --hostname buildenv --name buildenv -v $PWD:/repo:ro -t builder /repo/ci/packages.sh
+
+      - run: docker cp buildenv:/work/pkgs .
+
+      - uses: actions/upload-artifact@v2
+        with:
+          name: pkgs
+          path: pkgs
+
+  repository:
+    runs-on: ubuntu-latest
+    needs: packages
+
+    steps:
+      - uses: actions/checkout@main
+
+      - uses: actions/download-artifact@main
+        with:
+          name: pkgs
+          path: ~/pkgs
+
+      - name: Setup multiarch/qemu-user-static
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset --credential yes --persistent yes
+
+      - name: Setup Arch Linux ARM image
+        env:
+          IMAGE_NAME: docker.pkg.github.com/tosainu/zynqmp-arch/builder
+          USERNAME: $GITHUB_ACTOR
+          PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          docker login docker.pkg.github.com -u "$USERNAME" --password-stdin <<< "$PASSWORD"
+          docker pull $IMAGE_NAME
+          docker tag $IMAGE_NAME builder
+          rm -rf ~/.docker
+
+      - name: Build
+        run: docker run --name buildenv -v $PWD:/repo:ro -v $HOME/pkgs:/pkgs:ro -t builder /repo/ci/repository.sh
+
+      - run: docker cp buildenv:/work ~/repository
+
+      - name: Deploy
+        if: github.ref == 'refs/heads/master'
+        env:
+          CNAME: zynqmp-arch.myon.info
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd ~/repository
+          echo "$CNAME" > CNAME
+          echo "<h1>$CNAME</h1>" > index.html
+          git init
+          git config user.name "GitHub Actions"
+          git config user.email "${GITHUB_ACTOR}@users.noreply.github.com"
+          git switch --orphan gh-pages
+          git add -A
+          git commit --allow-empty -m "(⋈◍＞◡＜◍)。✧♡ "
+          git push -f "https://${GITHUB_ACTOR}:${TOKEN}@github.com/${GITHUB_REPOSITORY}" HEAD
