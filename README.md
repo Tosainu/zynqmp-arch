@@ -170,7 +170,7 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
         ```
 2. Format and mount the SD card:
     ```
-    $ sudo mkfs.vfat -F 32 /dev/sdX1
+    $ sudo mkfs.vfat /dev/sdX1
     $ sudo mkfs.ext4 /dev/sdX2
 
     $ sudo mount /dev/sdX2 /mnt
@@ -243,7 +243,7 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
 9. Configure `/etc/fstab` and exit the chroot environment:
     ```
     (chroot)# cat >> /etc/fstab <<EOS
-    /dev/mmcblk0p2 /     ext4 defaults 0 0
+    /dev/mmcblk0p2 /     ext4 defaults 0 1
     /dev/mmcblk0p1 /boot vfat defaults 0 2
     EOS
 
