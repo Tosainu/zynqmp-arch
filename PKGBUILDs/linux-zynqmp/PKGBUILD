@@ -1,15 +1,15 @@
 # Zynq UltrasScale+
-# Maintainer: TODO <user@example.com>
+# Maintainer: Kenta Sato <tosainu.maple@gmail.com>
 
 buildarch=8
 
 pkgbase=linux-zynqmp
-_srctag=xilinx-v2020.1
+_srctag=xilinx-v2020.2
 _srcname=linux-xlnx-${_srctag}
 _kernelname=${pkgbase#linux}
 _desc="Zynq UltrasScale+"
 pkgver=5.4.0
-pkgrel=2
+pkgrel=3
 arch=('aarch64')
 url="https://github.com/Xilinx/linux-xlnx"
 license=('GPL2')
@@ -17,7 +17,6 @@ makedepends=('xmlto' 'docbook-xsl' 'kmod' 'inetutils' 'bc' 'dtc')
 options=('!strip')
 source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
         'Remove-redundant-YYLOC-global-declaration.patch::https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/patch/?id=e33a814e772cdc36436c8c188d8c42d019fda639'
-        'https://www.xilinx.com/Attachment/0001-Revert-tty-xilinx_uartps-Add-the-id-to-the-console.patch'
         'https://raw.githubusercontent.com/Avnet/Ultra96-PYNQ/v2.6.0/Ultra96/petalinux_bsp_v2/meta-user/recipes-kernel/linux/linux-xlnx/fix_u96v2_pwrseq_simple.patch'
         'add-device-tree-for-ultra96-v2.patch'
         'use-lima-driver.patch'
@@ -26,9 +25,8 @@ source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
         'linux-zynqmp.preset'
         '60-linux-zynqmp.hook'
         '90-linux-zynqmp.hook')
-md5sums=('a0c4e16c9e89f656fbecd1948f49a602'
+md5sums=('ef5be9a58c270d8206e8763bdc9dc15d'
          '6be88b9623262b1b20def37b5695cd5e'
-         '71acbe84eb9d16e3346677efba44d9a1'
          '28402a28c1c2d603067ed0a2ee4aad5a'
          '08b30b280c51fa1b1b7afbc6af9af779'
          '5ed1e5847ca41c72189ebb532c091097'
@@ -44,7 +42,6 @@ prepare() {
   cat "${srcdir}/config" > ./.config
 
   patch -Np1 < "../Remove-redundant-YYLOC-global-declaration.patch"
-  patch -Np1 < "../0001-Revert-tty-xilinx_uartps-Add-the-id-to-the-console.patch"
   patch -Np1 < "../fix_u96v2_pwrseq_simple.patch"
   patch -Np1 < "../add-device-tree-for-ultra96-v2.patch"
   patch -Np1 < "../use-lima-driver.patch"
