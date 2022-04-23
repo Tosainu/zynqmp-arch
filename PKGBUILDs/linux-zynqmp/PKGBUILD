@@ -4,19 +4,18 @@
 buildarch=8
 
 pkgbase=linux-zynqmp
-_srctag=xilinx-v2020.2
+_srctag=xilinx-v2021.2
 _srcname=linux-xlnx-${_srctag}
 _kernelname=${pkgbase#linux}
 _desc="Zynq UltrasScale+"
-pkgver=5.4.0
-pkgrel=3
+pkgver=5.10.0
+pkgrel=1
 arch=('aarch64')
 url="https://github.com/Xilinx/linux-xlnx"
 license=('GPL2')
 makedepends=('xmlto' 'docbook-xsl' 'kmod' 'inetutils' 'bc' 'dtc')
 options=('!strip')
 source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
-        'Remove-redundant-YYLOC-global-declaration.patch::https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/patch/?id=e33a814e772cdc36436c8c188d8c42d019fda639'
         'https://raw.githubusercontent.com/Avnet/Ultra96-PYNQ/v2.6.0/Ultra96/petalinux_bsp_v2/meta-user/recipes-kernel/linux/linux-xlnx/fix_u96v2_pwrseq_simple.patch'
         'add-device-tree-for-ultra96-v2.patch'
         'use-lima-driver.patch'
@@ -25,12 +24,11 @@ source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
         'linux-zynqmp.preset'
         '60-linux-zynqmp.hook'
         '90-linux-zynqmp.hook')
-md5sums=('ef5be9a58c270d8206e8763bdc9dc15d'
-         '6be88b9623262b1b20def37b5695cd5e'
+md5sums=('0a7d78cab186a3c43c7847c375e48775'
          '28402a28c1c2d603067ed0a2ee4aad5a'
          '08b30b280c51fa1b1b7afbc6af9af779'
          '5ed1e5847ca41c72189ebb532c091097'
-         'e593be57e5c8adbdf0ee8ec006beba78'
+         '8c35b20ba7468f379cef99ebc9faa813'
          '9a3f0bc4ae4803f42737878491dd38e7'
          '6ba25cf6d2a58cff1a8d9f4635524b00'
          'ce6c81ad1ad1f8b333fd6077d47abdaf'
@@ -41,7 +39,6 @@ prepare() {
 
   cat "${srcdir}/config" > ./.config
 
-  patch -Np1 < "../Remove-redundant-YYLOC-global-declaration.patch"
   patch -Np1 < "../fix_u96v2_pwrseq_simple.patch"
   patch -Np1 < "../add-device-tree-for-ultra96-v2.patch"
   patch -Np1 < "../use-lima-driver.patch"
@@ -160,7 +157,7 @@ _package-headers() {
   cp -t "${_builddir}" -a include scripts
 
   install -Dt "${_builddir}/arch/${KARCH}" -m644 arch/${KARCH}/Makefile
-  install -Dt "${_builddir}/arch/${KARCH}/kernel" -m644 arch/${KARCH}/kernel/asm-offsets.s arch/$KARCH/kernel/module.lds
+  install -Dt "${_builddir}/arch/${KARCH}/kernel" -m644 arch/${KARCH}/kernel/asm-offsets.s
 
   cp -t "${_builddir}/arch/${KARCH}" -a arch/${KARCH}/include
   mkdir -p "${_builddir}/arch/arm"
