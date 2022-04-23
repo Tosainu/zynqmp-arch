@@ -27,6 +27,8 @@ dlpkg() {
   fakeroot pacman -Sddw --noconfirm --noprogressbar --config ~/pacman.conf --dbpath ~/db --cachedir . $@
 }
 
+mkdir -p /pkgs/aarch64
+
 mkdir ~/work
 cd ~/work
 
@@ -50,10 +52,10 @@ do
     sudo pacman -U --noconfirm --noprogressbar "${pkg_files[@]}"
   fi
 
+  cp *.pkg.tar.xz /pkgs/aarch64/
+
   popd
 done
 
-mkdir -p /pkgs/aarch64
-cp PKGBUILDs/*/*.pkg.tar.xz /pkgs/aarch64/
 cd /pkgs/aarch64
 repo-add zynqmp-arch.db.tar.gz *.pkg.tar.xz
