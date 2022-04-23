@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 
 set -e
+set -o pipefail
+set -u
 
-sudo pacman -Syu --noconfirm
+sudo pacman-key --init
+sudo pacman-key --populate archlinuxarm
 
-sudo sed -i "s/^#\(MAKEFLAGS=\).*/\1\"-j$(( $(nproc) * 2 ))\"/" /etc/makepkg.conf
+sudo sed -i 's/^#\?\(Color\)/\1/' /etc/pacman.conf
+sudo sed -i 's/^#\?\(MAKEFLAGS=\).*$/\1"-j4"/' /etc/makepkg.conf
+sudo pacman -Syyu --noconfirm --noprogressbar
 
 # another pacman conig and db for downloading previously built packages
 cp /etc/pacman.conf ~/
@@ -22,9 +27,8 @@ dlpkg() {
   fakeroot pacman -Sddw --noconfirm --noprogressbar --config ~/pacman.conf --dbpath ~/db --cachedir . $@
 }
 
-sudo mkdir /work
-sudo chown $(id -un):$(id -gn) /work
-cd /work
+mkdir ~/work
+cd ~/work
 
 cp -r /repo/PKGBUILDs .
 
@@ -49,5 +53,7 @@ do
   popd
 done
 
-mkdir pkgs
-mv PKGBUILDs/*/*.pkg.tar.xz pkgs/
+mkdir -p /pkgs/aarch64
+cp PKGBUILDs/*/*.pkg.tar.xz /pkgs/aarch64/
+cd /pkgs/aarch64
+repo-add zynqmp-arch.db.tar.gz *.pkg.tar.xz

@@ -1,0 +1,73 @@
+version: 2.1
+
+jobs:
+  build:
+    machine:
+      image: ubuntu-2004:202201-02
+    resource_class: arm.medium
+    steps:
+      - run: docker version
+      - run: docker info
+      - checkout
+      - run:
+          name: Prepare a container image
+          command: |
+            docker build -t builder - \<<EOS
+            FROM ghcr.io/tosainu/alarm-makepkg:latest
+            USER root
+            RUN usermod -u $UID alarm
+            USER alarm
+            EOS
+      - run:
+          name: Build packages
+          command: mkdir ~/pkgs && docker run --hostname buildenv -v "$PWD:/repo:ro" -v "$HOME/pkgs:/pkgs" -t builder /repo/ci/build.sh
+      - store_artifacts:
+          path: ~/pkgs
+      - persist_to_workspace:
+          root: ~/
+          paths:
+            - pkgs
+
+  deploy:
+    docker:
+      - image: cimg/node:lts
+    resource_class: small
+    steps:
+      - attach_workspace:
+          at: ~/
+      - add_ssh_keys:
+          fingerprints:
+            - "1e:ce:f8:d3:03:ad:11:1c:cf:37:20:e4:f0:fb:50:e6"
+      - run:
+          name: Add github.com to ~/.ssh/known_hosts
+          command: |
+            cat >> ~/.ssh/known_hosts \<<EOS
+            github.com ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBEmKSENjQEezOmxkZMy7opKgwFB9nkt5YRrYMjNuG5N87uRgg6CLrbo5wAdT/y6v0mKV0U2w0WZ2YB/++Tpockg=
+            github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl
+            github.com ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ==
+            EOS
+      - run:
+          name: Deploy
+          working_directory: ~/pkgs
+          command: |
+            git init
+            git config user.name "CircleCI"
+            git config user.email "${CIRCLE_PROJECT_USERNAME}@users.noreply.github.com"
+            git checkout --orphan gh-pages
+            echo "zynqmp-arch.myon.info" > CNAME
+            cp CNAME index.html
+            git add -A
+            git commit --allow-empty -m "(⋈◍＞◡＜◍)。✧♡ [skip ci]"
+            git push -f "$CIRCLE_REPOSITORY_URL" HEAD
+
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build
+      - deploy:
+          requires:
+            - build
+          filters:
+            branches:
+              only: master
