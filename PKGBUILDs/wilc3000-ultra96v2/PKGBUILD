@@ -3,20 +3,20 @@
 buildarch=8
 
 pkgname=wilc3000-ultra96v2
-_srctag=wilc_linux_15_3_1
-_srcname=driver-${_srctag}
-pkgver=15.3.1
-pkgrel=3
+_srctag=linux4microchip-2021.10
+_srcname=linux-at91-${_srctag}
+pkgver=15.6
+pkgrel=1
 pkgdesc="ATWILC1000 & ATWILC3000 Wireless Drivers for Ultra96-V2"
 arch=('aarch64')
-url="https://github.com/linux4wilc/driver"
+url="https://github.com/linux4sam/linux-at91"
 license=('GPL2')
 makedepends=('linux-zynqmp-headers')
-source=("https://github.com/linux4wilc/driver/archive/${_srctag}.tar.gz"
-        'wilc_linux_15_3_1-ultra96v2.patch'
+source=("https://github.com/linux4sam/linux-at91/archive/${_srctag}.tar.gz"
+        'wilc_linux_15_6-ultra96v2.patch'
         'wilc_sdio.conf')
-md5sums=('26d2ad6b5a6330353c261117c57c0836'
-         'e8f4b5213e127413ccab7924fbef6ae0'
+md5sums=('5f41585093ffd8588089e93a24f1a94a'
+         '2d39598f8e95c82f46c98036c6ab7ce3'
          '8e9746265d41b4d4336a037c9ab7b755')
 
 _kernel_ver="$(pacman -Q linux-zynqmp-headers | grep -Eo "[^\ ]+$")-ARCH"
@@ -25,11 +25,11 @@ _modules_dir="/usr/lib/modules/${_kernel_ver}"
 prepare() {
   cd "${srcdir}/${_srcname}"
 
-  patch -Np1 < "../wilc_linux_15_3_1-ultra96v2.patch"
+  patch -Np1 < "../wilc_linux_15_6-ultra96v2.patch"
 }
 
 build() {
-  cd "${srcdir}/${_srcname}/wilc"
+  cd "${srcdir}/${_srcname}/drivers/net/wireless/microchip/wilc1000"
 
   unset LDFLAGS
   make ${MAKEFLAGS} -C "${_modules_dir}/build" \
@@ -48,7 +48,7 @@ package() {
 
   install -Dt "${pkgdir}/etc/modules-load.d" -m644 wilc_sdio.conf
 
-  cd "${srcdir}/${_srcname}/wilc"
+  cd "${srcdir}/${_srcname}/drivers/net/wireless/microchip/wilc1000"
 
   _kernel_base=${_kernel_ver%%-*}
   _kernel_base=${_kernel_base%.*}
