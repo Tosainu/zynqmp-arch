@@ -3,16 +3,16 @@
 buildarch=8
 
 pkgname=wilc-firmware
-_srctag=wilc_linux_15_4_1
+_srctag=wilc_linux_15_6
 _srcname=firmware-${_srctag}
-pkgver=15.4.1
+pkgver=15.6
 pkgrel=1
 pkgdesc="Firmware binaries for ATWILC1000 & ATWILC3000 Wireless Devices"
 arch=('any')
 url="https://github.com/linux4wilc/firmware"
 license=('custom')
 source=("https://github.com/linux4wilc/firmware/archive/${_srctag}.tar.gz")
-md5sums=('097e6d3315c4521c1f3cd43ba90757ac')
+md5sums=('2f9cf5ca61c448cd51318638927c2d2e')
 
 package() {
   cd "${srcdir}/${_srcname}"
