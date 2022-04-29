@@ -11,7 +11,7 @@ Arch Linux ARM for Xilinx Zynq UltraScale+ devices.
 - Vitis 2020.1
 - Statically-linked QEMU User space emulator for AArch64 + binfmt_misc configurations
     - If you are using Arch Linux, you can use [binfmt-qemu-static][binfmt-qemu-static] and [qemu-user-static][qemu-user-static] packages from the AUR ([ArchWiki][qemu-wiki]).
-    - You can also use the [multiarch/qemu-user-static][multiarch-qemu-static] container image.
+    - You can also use the [tonistiigi/binfmt][docker-binfmt] container image.
 - [arch-install-scripts][arch-install-scripts]
     - We will use [`arch-chroot(8)`][arch-chroot-man] to chroot into the target system.
 
@@ -194,8 +194,8 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
     ```
 5. Initialize the pacman keyring:
     ```
-    (chroot)# packan-key --init
-    (chroot)# packan-key --populate archlinuxarm
+    (chroot)# pacman-key --init
+    (chroot)# pacman-key --populate archlinuxarm
     ```
 6. Add `zynqmp-arch` package repository:
     ```
@@ -324,7 +324,7 @@ Insert the SD card and turn on the power. You will see the following messages vi
 [binfmt-qemu-static]: https://aur.archlinux.org/packages/binfmt-qemu-static/
 [qemu-user-static]: https://aur.archlinux.org/packages/qemu-user-static/
 [qemu-wiki]: https://wiki.archlinux.org/index.php/QEMU#Chrooting_into_arm/arm64_environment_from_x86_64
-[multiarch-qemu-static]: https://github.com/multiarch/qemu-user-static
+[docker-binfmt]: https://github.com/tonistiigi/binfmt
 [arch-chroot-man]: https://jlk.fjfi.cvut.cz/arch/manpages/man/extra/arch-install-scripts/arch-chroot.8.en
 [atf-xilinx]: https://github.com/Xilinx/arm-trusted-firmware
 [u-boot-xilinx]: https://github.com/Xilinx/u-boot-xlnx
