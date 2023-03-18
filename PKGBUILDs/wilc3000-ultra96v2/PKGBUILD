@@ -3,11 +3,11 @@
 buildarch=8
 
 pkgname=wilc3000-ultra96v2
-_srctag=2ca31a6563ac5eeb0eaecc0155b479a65fd11c6e
+_srctag=4cb2af86a94511a338e15fb0cbd0c666fcf98014
 _srcname=linux-at91-${_srctag}
-_kernel_ver=5.15.0-1
-pkgver=15.6
-pkgrel=2
+_kernel_ver=5.15.36-1
+pkgver=16.0
+pkgrel=1
 pkgdesc="ATWILC1000 & ATWILC3000 Wireless Drivers for Ultra96-V2"
 arch=('aarch64')
 url="https://github.com/linux4sam/linux-at91"
@@ -15,7 +15,7 @@ license=('GPL2')
 makedepends=("linux-zynqmp-headers=${_kernel_ver}")
 source=("https://github.com/Tosainu/linux-at91/archive/${_srctag}.tar.gz"
         'wilc_sdio.conf')
-md5sums=('10b2176dc4349bd6825002f84b4686be'
+md5sums=('f00602b9931cf7bdb2da4ea3b2930a92'
          '8e9746265d41b4d4336a037c9ab7b755')
 
 build() {

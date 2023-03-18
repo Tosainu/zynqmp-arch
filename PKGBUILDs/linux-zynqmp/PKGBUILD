@@ -4,11 +4,11 @@
 buildarch=8
 
 pkgbase=linux-zynqmp
-_srctag=xilinx-v2022.1
+_srctag=7484228ddbb5760eac350b1b4ffe685c9da9e765
 _srcname=linux-xlnx-${_srctag}
 _kernelname=${pkgbase#linux}
 _desc="Zynq UltrasScale+"
-pkgver=5.15.0
+pkgver=5.15.36
 pkgrel=1
 arch=('aarch64')
 url="https://github.com/Xilinx/linux-xlnx"
@@ -23,11 +23,11 @@ source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
         'linux-zynqmp.preset'
         '60-linux-zynqmp.hook'
         '90-linux-zynqmp.hook')
-md5sums=('b8b57068677f01578d8314efc4d9e8b7'
+md5sums=('b2a68c299a86687f0ea4bbc507886716'
          '29608c01e86211024412a10173dfdf59'
          '08b30b280c51fa1b1b7afbc6af9af779'
          '5ed1e5847ca41c72189ebb532c091097'
-         '7c8064962d900a602fc72c8e472d0096'
+         '890b942ef5b24ea46e9a1d3b1d2e2109'
          '6ba25cf6d2a58cff1a8d9f4635524b00'
          '0a5f16bfec6ad982a2f6782724cca8ba'
          '3dc88030a8f2f5a5f97266d99b149f77')
