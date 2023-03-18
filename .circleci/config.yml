@@ -3,8 +3,8 @@ version: 2.1
 jobs:
   build:
     machine:
-      image: ubuntu-2004:202201-02
-    resource_class: arm.medium
+      image: ubuntu-2204:current
+    resource_class: arm.large
     steps:
       - run: docker version
       - run: docker info

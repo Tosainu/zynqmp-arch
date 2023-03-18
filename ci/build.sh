@@ -8,7 +8,7 @@ sudo pacman-key --init
 sudo pacman-key --populate archlinuxarm
 
 sudo sed -i 's/^#\?\(Color\)/\1/' /etc/pacman.conf
-sudo sed -i 's/^#\?\(MAKEFLAGS=\).*$/\1"-j4"/' /etc/makepkg.conf
+sudo sed -i 's/^#\?\(MAKEFLAGS=\).*$/\1"-j6"/' /etc/makepkg.conf
 sudo pacman -Syyu --noconfirm --noprogressbar
 
 # another pacman conig and db for downloading previously built packages
