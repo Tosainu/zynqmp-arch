@@ -8,14 +8,14 @@ Arch Linux ARM for Xilinx Zynq UltraScale+ devices.
 
 **Required tools:**
 - Linux-based host PC
-- Vitis 2020.1
+- Vitis 2020.1 or later
 - Statically-linked QEMU User space emulator for AArch64 + binfmt_misc configurations
     - If you are using Arch Linux, you can use [binfmt-qemu-static][binfmt-qemu-static] and [qemu-user-static][qemu-user-static] packages from the AUR ([ArchWiki][qemu-wiki]).
     - You can also use the [tonistiigi/binfmt][docker-binfmt] container image.
 - [arch-install-scripts][arch-install-scripts]
     - We will use [`arch-chroot(8)`][arch-chroot-man] to chroot into the target system.
 
-### Step1: Hardware Design
+### Step1: Prepare the Hardware Design
 
 Use Vivado to create the hardware design. After synth, impl, and generating bitstream, export the `.xsa` file by following the TCL command.
 
@@ -23,36 +23,28 @@ Use Vivado to create the hardware design. After synth, impl, and generating bits
 Vivado% write_hw_platform -fixed -include_bit system.xsa
 ```
 
-### Step2: Boot Loaders and Firmwares
+### Step2: Build Boot Loaders and Firmwares
 
 1. Generate First Stage Boot Loader (fsbl) and PMU Firmware (pmufw) sources:
     ```
     $ mkdir xsct && cd $_
     $ cp /path/to/system.xsa .
 
-    $ xsct
-
-    xsct% set hw_design [hsi open_hw_design system.xsa]
-
-    xsct% set sw_design [hsi create_sw_design fsbl -proc psu_cortexa53_0 -os standalone]
-    xsct% hsi set_property CONFIG.stdin  psu_uart_1 [hsi get_os]
-    xsct% hsi set_property CONFIG.stdout psu_uart_1 [hsi get_os]
-    xsct% hsi add_library xilffs
-    xsct% hsi add_library xilpm
-    xsct% hsi add_library xilsecure
-    xsct% hsi generate_app -hw $hw_design -sw $sw_design -app zynqmp_fsbl -dir fsbl
-    xsct% hsi close_sw_design $sw_design
-
-    xsct% set sw_design [hsi create_sw_design pmufw -proc psu_pmu_0 -os standalone]
-    xsct% hsi set_property CONFIG.stdin  psu_uart_1 [hsi get_os]
-    xsct% hsi set_property CONFIG.stdout psu_uart_1 [hsi get_os]
-    xsct% hsi add_library xilfpga
-    xsct% hsi add_library xilsecure
-    xsct% hsi add_library xilskey
-    xsct% hsi generate_app -hw $hw_design -sw $sw_design -app zynqmp_pmufw -dir pmufw
-    xsct% hsi close_sw_design $sw_design
-
-    xsct% exit
+    $ xsct -nodisp -interactive <<'EOS'
+    hsi open_hw_design system.xsa
+    
+    hsi create_sw_design fsbl -proc psu_cortexa53_0 -app zynqmp_fsbl
+    hsi set_property CONFIG.stdin  psu_uart_1 [hsi get_os]
+    hsi set_property CONFIG.stdout psu_uart_1 [hsi get_os]
+    hsi generate_app -app zynqmp_fsbl -dir fsbl
+    hsi close_sw_design [hsi current_sw_design]
+    
+    hsi create_sw_design pmufw -proc psu_pmu_0 -app zynqmp_pmufw
+    hsi set_property CONFIG.stdin  psu_uart_1 [hsi get_os]
+    hsi set_property CONFIG.stdout psu_uart_1 [hsi get_os]
+    hsi generate_app -app zynqmp_pmufw -dir pmufw
+    hsi close_sw_design [hsi current_sw_design]
+    EOS
 
     $ cd ..
     ```
@@ -71,8 +63,9 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
 4. Build [Xilinx/arm-trusted-firmware][atf-xilinx]:
     ```
     $ mkdir arm-trusted-firmware && cd $_
-    $ curl -L https://github.com/Xilinx/arm-trusted-firmware/archive/xilinx-v2020.1.tar.gz | \
+    $ curl -L https://github.com/Xilinx/arm-trusted-firmware/archive/xilinx-v2022.2.tar.gz | \
         tar xz --strip-components=1 -C .
+    $ sed -i 's!\s\(-Wl,\)\?--fatal-warnings\b!!g' Makefile
 
     $ CROSS_COMPILE=aarch64-linux-gnu- ARCH=aarch64 \
         make -j12 PLAT=zynqmp RESET_TO_BL31=1 ZYNQMP_CONSOLE=cadence1
@@ -82,7 +75,7 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
 5. Build [Xilinx/u-boot-xlnx][u-boot-xilinx]:
     ```
     $ mkdir u-boot-xlnx && cd $_
-    $ curl -L https://github.com/Xilinx/u-boot-xlnx/archive/xilinx-v2020.1.tar.gz | \
+    $ curl -L https://github.com/Xilinx/u-boot-xlnx/archive/xilinx-v2022.2.tar.gz | \
         tar xz --strip-components=1 -C .
 
     $ CROSS_COMPILE=aarch64-linux-gnu- ARCH=aarch64 make xilinx_zynqmp_virt_defconfig
@@ -103,7 +96,7 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
     $ cp ../u-boot-xlnx/u-boot.elf .
 
     $ cat > boot.bif <<EOS
-    the_ROM_image:
+    all:
     {
       [destination_cpu=a53-0, bootloader]                       fsbl.elf
       [destination_cpu=pmu]                                     pmufw.elf
@@ -118,7 +111,7 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
     $ cd ..
     ```
 
-### Step3: Rootfs
+### Step3: Create Bootable SD Card
 
 1. Partition the SD card:
     1. Start `fdisk`:
@@ -128,9 +121,8 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
     2. Clear out all partitions:
         ```
         Command (m for help): o
-        Created a new DOS disklabel with disk identifier 0xad9770e8.
         ```
-    3. Create the first partition (kernel and boot loaders):
+    3. Create the first partition (32 MiB, FAT16, for `BOOT.BIN`):
         ```
         Command (m for help): n
         Partition type
@@ -138,17 +130,17 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
         e   extended (container for logical partitions)
         Select (default p): p
         Partition number (1-4, default 1): 1
-        First sector (2048-124975103, default 2048):
-        Last sector, +/-sectors or +/-size{K,M,G,T,P} (2048-124975103, default 124975103): +200M
-        
-        Created a new partition 1 of type 'Linux' and of size 200 MiB.
+        First sector (2048-15661055, default 2048):
+        Last sector, +/-sectors or +/-size{K,M,G,T,P} (2048-15661055, default 15661055): +32M
+
+        Created a new partition 1 of type 'Linux' and of size 32 MiB.
         
         Command (m for help): t
         Selected partition 1
-        Hex code or alias (type L to list all): c
-        Changed type of partition 'Linux' to 'W95 FAT32 (LBA)'.
+        Hex code or alias (type L to list all): e
+        Changed type of partition 'Linux' to 'W95 FAT16 (LBA)'.
         ```
-    4. Create the second partition (rootfs):
+    4. Create the second partition (remaining space, bootable, for Linux rootfs):
         ```
         Command (m for help): n
         Partition type
@@ -156,10 +148,15 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
         e   extended (container for logical partitions)
         Select (default p): p
         Partition number (2-4, default 2):
-        First sector (411648-124975103, default 411648):
-        Last sector, +/-sectors or +/-size{K,M,G,T,P} (411648-124975103, default 124975103):
+        First sector (67584-15661055, default 67584):
+        Last sector, +/-sectors or +/-size{K,M,G,T,P} (67584-15661055, default 15661055):
+
+        Created a new partition 2 of type 'Linux' and of size 7.4 GiB.
+
+        Command (m for help): a
+        Partition number (1,2, default 2):
         
-        Created a new partition 2 of type 'Linux' and of size 59.4 GiB.
+        The bootable flag on partition 2 is enabled now.
         ```
     5. Write the partition table and exit:
         ```
@@ -168,20 +165,18 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
         Calling ioctl() to re-read partition table.
         Syncing disks.
         ```
-2. Format and mount the SD card:
+2. Format partitions:
     ```
-    $ sudo mkfs.vfat /dev/sdX1
+    $ sudo mkfs.vfat -F 16 /dev/sdX1
     $ sudo mkfs.ext4 /dev/sdX2
-
-    $ sudo mount /dev/sdX2 /mnt
-    $ sudo mkdir -p /mnt/boot
-    $ sudo mount /dev/sdX1 /mnt/boot
     ```
-3. Download and extract the latest Arch Linux ARM tarball:
+3. Download the latest Arch Linux ARM tarball and extract to the second partiton:
     ```
     $ curl -LO http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz
     $ curl -LO http://os.archlinuxarm.org/os/ArchLinuxARM-aarch64-latest.tar.gz.md5
     $ md5sum -c ArchLinuxARM-aarch64-latest.tar.gz.md5
+
+    $ sudo mount /dev/sdX2 /mnt
     $ sudo bsdtar -xpf ArchLinuxARM-aarch64-latest.tar.gz -C /mnt
     $ sync
     ```
@@ -227,9 +222,9 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
         ```
         (chroot)# pacman -S wilc3000-ultra96v2 wilc-firmware
         ```
-    - Install [iwd][iwd-wiki] for connecting Wifi:
+    - Install [wpa_supplicant][wifi-wiki] for connecting Wifi:
         ```
-        (chroot)# pacman -S iwd
+        (chroot)# pacman -S wireless_tools wpa_supplicant
         ```
     - Remove unrequired packages:
         ```
@@ -244,22 +239,22 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
     ```
     (chroot)# cat >> /etc/fstab <<EOS
     /dev/mmcblk0p2 /     ext4 defaults 0 1
-    /dev/mmcblk0p1 /boot vfat defaults 0 2
     EOS
 
     (chroot)# exit
     ```
-10. Copy `BOOT.BIN` (created in step2) and `boot.scr` to `/boot`:
+10. Copy `boot.scr` to `/boot`:
     ```
-    $ sudo cp BOOT.BIN /mnt/boot/
-
-    $ vim /path/to/zynqmp-arch/boot/boot.cmd
+    $ vim /path/to/zynqmp-arch/boot/boot.cmd    # modify if needed
     $ /path/to/u-boot-xlnx/tools/mkimage -c none -A arm64 -T script -d /path/to/zynqmp-arch/boot/boot.cmd boot.scr
     $ sudo mv boot.scr /mnt/boot/
+    $ sudo umount /mnt
     ```
-11. Unmount the SD card:
+11. Copy `BOOT.BIN` (created in step2) to the first partition:
     ```
-    sudo umount /mnt{/boot,}
+    $ sudo mount /dev/sdX2 /mnt
+    $ sudo cp BOOT.BIN /mnt
+    $ sudo umount /mnt
     ```
 
 ### Step4: Boot!
@@ -267,56 +262,62 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
 Insert the SD card and turn on the power. You will see the following messages via serial console.
 
     Xilinx Zynq MP First Stage Boot Loader
-    Release 2020.1   Nov  7 2020  -  11:51:03
-    PMU Firmware 2020.1	Nov  7 2020   11:51:27
+    Release 2022.1   Mar 18 2023  -  09:00:14
+    PMU Firmware 2022.1	Mar 18 2023   09:02:24
     PMU_ROM Version: xpbr-v8.1.0-0
-    NOTICE:  ATF running on XCZU3EG/silicon v4/RTL5.1 at 0xfffea000
-    NOTICE:  BL31: v2.2(release):
-    NOTICE:  BL31: Built : 11:51:33, Nov  7 2020
+    NOTICE:  BL31: v2.6(release):
+    NOTICE:  BL31: Built : 16:20:14, Mar 18 2023
     
     
-    U-Boot 2020.01 (Nov 07 2020 - 11:51:38 +0000)
+    U-Boot 2022.01 (Mar 18 2023 - 16:22:09 +0900)
     
+    CPU:   ZynqMP
+    Silicon: v3
     Model: Avnet Ultra96 Rev1
     Board: Xilinx ZynqMP
     DRAM:  2 GiB
     PMUFW:	v1.1
+    PMUFW no permission to change config object
     EL Level:	EL2
     Chip ID:	zu3eg
     NAND:  0 MiB
     MMC:   mmc@ff160000: 0, mmc@ff170000: 1
-    In:    serial@ff010000
-    Out:   serial@ff010000
-    Err:   serial@ff010000
+    Loading Environment from FAT... Unable to use mmc 0:2... In:    serial
+    Out:   serial
+    Err:   serial
     Bootmode: SD_MODE
     Reset reason:	EXTERNAL
     Net:   No ethernet found.
+    scanning bus for devices...
+    starting USB...
+    Bus usb@fe300000: probe failed, error -2
+    No working controllers found
     Hit any key to stop autoboot:  0
     switch to partitions #0, OK
     mmc0 is current device
-    Scanning mmc 0:1...
-    Found U-Boot script /boot.scr
-    524 bytes read in 17 ms (29.3 KiB/s)
+    Scanning mmc 0:2...
+    Found U-Boot script /boot/boot.scr
+    540 bytes read in 18 ms (29.3 KiB/s)
     ## Executing script at 20000000
-    22747648 bytes read in 1820 ms (11.9 MiB/s)
-    40479 bytes read in 26 ms (1.5 MiB/s)
-    8193054 bytes read in 668 ms (11.7 MiB/s)
+    26909184 bytes read in 1931 ms (13.3 MiB/s)
+    41247 bytes read in 29 ms (1.4 MiB/s)
+    7612522 bytes read in 558 ms (13 MiB/s)
     ## Flattened Device Tree blob at 00100000
        Booting using the fdt blob at 0x100000
-       Loading Ramdisk to 7882f000, end 78fff41e ... OK
-       Loading Device Tree to 000000000fff3000, end 000000000ffffe1e ... OK
+       Loading Ramdisk to 7b6bf000, end 7be0186a ... OK
+       Loading Device Tree to 000000007b6b1000, end 000000007b6be11e ... OK
     
     Starting kernel ...
     
     [    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd034]
-    [    0.000000] Linux version 5.4.0-1-ARCH (alarm@buildenv) (gcc version 10.2.0 (GCC)) #1 SMP Mon Nov 9 07:02:37 UTC 2020
+    [    0.000000] Linux version 5.15.36-1-zynqmp-ARCH (alarm@buildenv) (gcc (GCC) 12.1.0, GNU ld (GNU Binutils) 2.38) #1 SMP Sat Mar 18 04:38:57 UTC 2023
     [    0.000000] Machine model: Avnet Ultra96-V2 Rev1
     [    0.000000] earlycon: cdns0 at MMIO 0x00000000ff010000 (options '115200n8')
     [    0.000000] printk: bootconsole [cdns0] enabled
     
     (...)
     
-    Arch Linux 5.4.0-1-ARCH (ttyPS0)
+    Arch Linux 5.15.36-1-zynqmp-ARCH (ttyPS0)
     
     alarm login:
 
@@ -328,4 +329,4 @@ Insert the SD card and turn on the power. You will see the following messages vi
 [arch-chroot-man]: https://jlk.fjfi.cvut.cz/arch/manpages/man/extra/arch-install-scripts/arch-chroot.8.en
 [atf-xilinx]: https://github.com/Xilinx/arm-trusted-firmware
 [u-boot-xilinx]: https://github.com/Xilinx/u-boot-xlnx
-[iwd-wiki]: https://wiki.archlinux.org/index.php/Iwd
+[wifi-wiki]: https://wiki.archlinux.org/title/Wpa_supplicant
