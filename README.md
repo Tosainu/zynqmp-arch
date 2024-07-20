@@ -8,7 +8,7 @@ Arch Linux ARM for Xilinx Zynq UltraScale+ devices.
 
 **Required tools:**
 - Linux-based host PC
-- Vitis 2020.1 or later
+- Vitis 2024.1 or later
 - Statically-linked QEMU User space emulator for AArch64 + binfmt_misc configurations
     - If you are using Arch Linux, you can use [binfmt-qemu-static][binfmt-qemu-static] and [qemu-user-static][qemu-user-static] packages from the AUR ([ArchWiki][qemu-wiki]).
     - You can also use the [tonistiigi/binfmt][docker-binfmt] container image.
@@ -48,41 +48,37 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
 
     $ cd ..
     ```
-2. Patch the pmufw sources (Ultra96/Ultra96-V2):
-    ```
-    $ sed -i 's/^\(CFLAGS :=.*$\)/\1 -DENABLE_MOD_ULTRA96 -DULTRA96_VERSION=2/' xsct/pmufw/Makefile
-    $ sed -i 's/^\(#define\s\+PMU_MIO_INPUT_PIN_VAL\).*/\1 (1U)/;
-              s/^\(#define\s\+BOARD_SHUTDOWN_PIN_VAL\).*/\1 (1U)/;
-              s/^\(#define\s\+BOARD_SHUTDOWN_PIN_STATE_VAL\).*/\1 (1U)/' xsct/pmufw/xpfw_config.h
-    ```
-3. Build fsbl and pmufw:
+2. Buils fsbl:
     ```
     $ make -C xsct/fsbl
+    ```
+3. Build pmufw:
+    ```
     $ make -C xsct/pmufw
+
+    # or enabling Ultra96 customizations
+    $ make -C xsct/pmufw CFLAGS="-DENABLE_MOD_ULTRA96 -DULTRA96_VERSION=2 -DPMU_MIO_INPUT_PIN_VAL=1 -DBOARD_SHUTDOWN_PIN_VAL=1 -DBOARD_SHUTDOWN_PIN_STATE_VAL=1"
     ```
 4. Build [Xilinx/arm-trusted-firmware][atf-xilinx]:
     ```
     $ mkdir arm-trusted-firmware && cd $_
-    $ curl -L https://github.com/Xilinx/arm-trusted-firmware/archive/xilinx-v2022.2.tar.gz | \
+    $ curl -L https://github.com/Xilinx/arm-trusted-firmware/archive/xilinx-v2024.1.tar.gz | \
         tar xz --strip-components=1 -C .
-    $ sed -i 's!\s\(-Wl,\)\?--fatal-warnings\b!!g' Makefile
 
-    $ CROSS_COMPILE=aarch64-linux-gnu- ARCH=aarch64 \
-        make -j12 PLAT=zynqmp RESET_TO_BL31=1 ZYNQMP_CONSOLE=cadence1
+    $ make CROSS_COMPILE=aarch64-linux-gnu- ARCH=aarch64 PLAT=zynqmp RESET_TO_BL31=1 ZYNQMP_CONSOLE=cadence1 -j16
 
     $ cd ..
     ```
 5. Build [Xilinx/u-boot-xlnx][u-boot-xilinx]:
     ```
     $ mkdir u-boot-xlnx && cd $_
-    $ curl -L https://github.com/Xilinx/u-boot-xlnx/archive/xilinx-v2022.2.tar.gz | \
+    $ curl -L https://github.com/Xilinx/u-boot-xlnx/archive/xilinx-v2024.1.tar.gz | \
         tar xz --strip-components=1 -C .
 
-    $ CROSS_COMPILE=aarch64-linux-gnu- ARCH=aarch64 make xilinx_zynqmp_virt_defconfig
-    $ CROSS_COMPILE=aarch64-linux-gnu- ARCH=aarch64 \
+    $ make CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm xilinx_zynqmp_virt_defconfig
+    $ make CROSS_COMPILE=aarch64-linux-gnu- ARCH=arm \
         DEVICE_TREE="<your-target-device-tree-name>" \
-        BL31=$PWD/../arm-trusted-firmware/build/zynqmp/release/bl31.bin \
-        make -j12 u-boot.elf
+        -j16 u-boot.elf
 
     $ cd ..
     ```
@@ -261,64 +257,74 @@ Vivado% write_hw_platform -fixed -include_bit system.xsa
 
 Insert the SD card and turn on the power. You will see the following messages via serial console.
 
-    Xilinx Zynq MP First Stage Boot Loader
-    Release 2022.1   Mar 18 2023  -  09:00:14
-    PMU Firmware 2022.1	Mar 18 2023   09:02:24
+
+    Zynq MP First Stage Boot Loader
+    Release 2024.1   Jul 20 2024  -  08:13:47
+    PMU Firmware 2024.1	Jul 20 2024   08:15:28
     PMU_ROM Version: xpbr-v8.1.0-0
-    NOTICE:  BL31: v2.6(release):
-    NOTICE:  BL31: Built : 16:20:14, Mar 18 2023
-    
-    
-    U-Boot 2022.01 (Mar 18 2023 - 16:22:09 +0900)
-    
+    NOTICE:  BL31: Non secure code at 0x8000000
+    NOTICE:  BL31: v2.10.0	(release):
+    NOTICE:  BL31: Built : 08:22:11, Jul 20 2024
+
+
+    U-Boot 2024.01 (Jul 20 2024 - 17:28:58 +0900)
+
     CPU:   ZynqMP
     Silicon: v3
+    Chip:  zu3eg
     Model: Avnet Ultra96 Rev1
     Board: Xilinx ZynqMP
     DRAM:  2 GiB
     PMUFW:	v1.1
-    PMUFW no permission to change config object
     EL Level:	EL2
-    Chip ID:	zu3eg
+    Secure Boot:	not authenticated, not encrypted
+    Core:  61 devices, 26 uclasses, devicetree: board
     NAND:  0 MiB
     MMC:   mmc@ff160000: 0, mmc@ff170000: 1
-    Loading Environment from FAT... Unable to use mmc 0:2... In:    serial
-    Out:   serial
-    Err:   serial
+    Loading Environment from FAT... Unable to use mmc 0:2...
+    In:    serial
+    Out:   serial,vidconsole
+    Err:   serial,vidconsole
     Bootmode: SD_MODE
     Reset reason:	EXTERNAL
     Net:   No ethernet found.
     scanning bus for devices...
     starting USB...
-    Bus usb@fe300000: probe failed, error -2
-    No working controllers found
+    Bus usb@fe300000: Register 2000440 NbrPorts 2
+    Starting the controller
+    USB XHCI 1.00
+    scanning bus usb@fe300000 for devices... 4 USB Device(s) found
+           scanning usb for storage devices... 0 Storage Device(s) found
     Hit any key to stop autoboot:  0
     switch to partitions #0, OK
     mmc0 is current device
     Scanning mmc 0:2...
     Found U-Boot script /boot/boot.scr
-    540 bytes read in 18 ms (29.3 KiB/s)
+    555 bytes read in 17 ms (31.3 KiB/s)
     ## Executing script at 20000000
-    26909184 bytes read in 1931 ms (13.3 MiB/s)
-    41247 bytes read in 29 ms (1.4 MiB/s)
-    7612522 bytes read in 558 ms (13 MiB/s)
+    11631052 bytes read in 847 ms (13.1 MiB/s)
+    41378 bytes read in 47 ms (859.4 KiB/s)
+    8318161 bytes read in 608 ms (13 MiB/s)
+       Uncompressing Kernel Image
     ## Flattened Device Tree blob at 00100000
        Booting using the fdt blob at 0x100000
-       Loading Ramdisk to 7b6bf000, end 7be0186a ... OK
-       Loading Device Tree to 000000007b6b1000, end 000000007b6be11e ... OK
-    
+    Working FDT set to 100000
+       Loading Ramdisk to 775f6000, end 77de4cd1 ... OK
+       Loading Device Tree to 00000000775e8000, end 00000000775f51a1 ... OK
+    Working FDT set to 775e8000
+
     Starting kernel ...
-    
+
     [    0.000000] Booting Linux on physical CPU 0x0000000000 [0x410fd034]
-    [    0.000000] Linux version 5.15.36-1-zynqmp-ARCH (alarm@buildenv) (gcc (GCC) 12.1.0, GNU ld (GNU Binutils) 2.38) #1 SMP Sat Mar 18 04:38:57 UTC 2023
+    [    0.000000] Linux version 6.6.10-1-zynqmp (alarm@b7ba18711ee1) (gcc (GCC) 14.1.1 20240507, GNU ld (GNU Binutils) 2.42.0) #1 SMP Sat Jul 20 14:55:19 UTC 2024
     [    0.000000] Machine model: Avnet Ultra96-V2 Rev1
     [    0.000000] earlycon: cdns0 at MMIO 0x00000000ff010000 (options '115200n8')
     [    0.000000] printk: bootconsole [cdns0] enabled
-    
+
     (...)
-    
-    Arch Linux 5.15.36-1-zynqmp-ARCH (ttyPS0)
-    
+
+    Arch Linux 6.6.10-1-zynqmp (ttyPS0)
+
     alarm login:
 
 [arch-install-scripts]: https://github.com/archlinux/arch-install-scripts

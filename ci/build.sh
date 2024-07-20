@@ -4,13 +4,6 @@ set -e
 set -o pipefail
 set -u
 
-sudo pacman-key --init
-sudo pacman-key --populate archlinuxarm
-
-sudo sed -i 's/^#\?\(Color\)/\1/' /etc/pacman.conf
-sudo sed -i 's/^#\?\(MAKEFLAGS=\).*$/\1"-j6"/' /etc/makepkg.conf
-sudo pacman -Syyu --noconfirm --noprogressbar
-
 # another pacman conig and db for downloading previously built packages
 cp /etc/pacman.conf ~/
 cat >> ~/pacman.conf <<EOS
@@ -27,12 +20,7 @@ dlpkg() {
   fakeroot pacman -Sddw --noconfirm --noprogressbar --config ~/pacman.conf --dbpath ~/db --cachedir . $@
 }
 
-mkdir -p /pkgs/aarch64
-
-mkdir ~/work
-cd ~/work
-
-cp -r /repo/PKGBUILDs .
+mkdir -p ~/pkgs/aarch64
 
 for p in \
   PKGBUILDs/linux-zynqmp \
@@ -52,10 +40,10 @@ do
     sudo pacman -U --noconfirm --noprogressbar "${pkg_files[@]}"
   fi
 
-  cp *.pkg.tar.xz /pkgs/aarch64/
+  cp *.pkg.tar.xz ~/pkgs/aarch64/
 
   popd
 done
 
-cd /pkgs/aarch64
+cd ~/pkgs/aarch64
 repo-add zynqmp-arch.db.tar.gz *.pkg.tar.xz

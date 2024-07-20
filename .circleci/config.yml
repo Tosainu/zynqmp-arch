@@ -2,25 +2,30 @@ version: 2.1
 
 jobs:
   build:
-    machine:
-      image: ubuntu-2204:current
+    docker:
+      - image: ghcr.io/tosainu/alarm-makepkg:latest
     resource_class: arm.large
     steps:
-      - run: docker version
-      - run: docker info
       - checkout
+
       - run:
-          name: Prepare a container image
+          name: Setup Pacman
           command: |
-            docker build -t builder - \<<EOS
-            FROM ghcr.io/tosainu/alarm-makepkg:latest
-            USER root
-            RUN usermod -u $UID alarm
-            USER alarm
-            EOS
+            sudo pacman-key --init
+            sudo pacman-key --populate archlinux
+            sudo pacman-key --populate archlinuxarm
+            sudo pacman-key --lsign-key 68B3537F39A313B3E574D06777193F152BDBE6A6 # Arch Linux ARM Build System <builder@archlinuxarm.org>
+            sudo sed -i 's/^#\?\(Color\)/\1/' /etc/pacman.conf
+            sudo sed -i 's/^#\?\(MAKEFLAGS=\).*$/\1"-j6"/' /etc/makepkg.conf
+
+      - run:
+          name: Update the System
+          command: |
+            sudo pacman -Syyu --noconfirm --noprogressbar
+
       - run:
           name: Build packages
-          command: mkdir ~/pkgs && docker run --hostname buildenv -v "$PWD:/repo:ro" -v "$HOME/pkgs:/pkgs" -t builder /repo/ci/build.sh
+          command: ./ci/build.sh
       - store_artifacts:
           path: ~/pkgs
       - persist_to_workspace:
@@ -70,4 +75,4 @@ workflows:
             - build
           filters:
             branches:
-              only: master
+              only: main
