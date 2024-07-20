@@ -4,108 +4,101 @@
 buildarch=8
 
 pkgbase=linux-zynqmp
-_srctag=7484228ddbb5760eac350b1b4ffe685c9da9e765
+_srctag=485728ba736edd5ba491e0ca8e9daa7f982a5df1
 _srcname=linux-xlnx-${_srctag}
 _kernelname=${pkgbase#linux}
 _desc="Zynq UltrasScale+"
-pkgver=5.15.36
+pkgver=6.6.10
 pkgrel=1
 arch=('aarch64')
 url="https://github.com/Xilinx/linux-xlnx"
 license=('GPL2')
-makedepends=('xmlto' 'docbook-xsl' 'kmod' 'inetutils' 'bc' 'dtc')
+makedepends=('bc' 'docbook-xsl' 'inetutils' 'kmod' 'patch' 'xmlto')
 options=('!strip')
 source=("https://github.com/Xilinx/linux-xlnx/archive/${_srctag}.tar.gz"
-        'https://raw.githubusercontent.com/Avnet/meta-avnet/2021.2/recipes-kernel/linux/files/u96v2-sbc/fix_u96v2_pwrseq_simple.patch'
+        'https://raw.githubusercontent.com/Avnet/meta-avnet/2024.1/recipes-kernel/linux/files/u96v2-sbc/fix_u96v2_pwrseq_simple.patch'
         'add-device-tree-for-ultra96-v2.patch'
-        'use-lima-driver.patch'
-        'config'
-        'linux-zynqmp.preset'
-        '60-linux-zynqmp.hook'
-        '90-linux-zynqmp.hook')
-md5sums=('b2a68c299a86687f0ea4bbc507886716'
+        'config')
+md5sums=('53cc0e3923f107da010e5ee411a7e8a3'
          '29608c01e86211024412a10173dfdf59'
-         '08b30b280c51fa1b1b7afbc6af9af779'
-         '5ed1e5847ca41c72189ebb532c091097'
-         '890b942ef5b24ea46e9a1d3b1d2e2109'
-         '6ba25cf6d2a58cff1a8d9f4635524b00'
-         '0a5f16bfec6ad982a2f6782724cca8ba'
-         '3dc88030a8f2f5a5f97266d99b149f77')
+         '76fa9095803fec0df33959e4bb4c24d8'
+         '5877650523a6e9717ea056f5bac2d7c5')
+
+_make() {
+  test -s version
+  make KERNELRELEASE="$(<version)" "$@"
+}
 
 prepare() {
-  cd ${_srcname}
+  cd $_srcname
 
   echo "Setting version..."
-  scripts/setlocalversion --save-scmversion
   echo "-$pkgrel" > localversion.10-pkgrel
   echo "${pkgbase#linux}" > localversion.20-pkgname
+  make defconfig
+  make -s kernelrelease > version
+  make mrproper
 
   patch -Np1 < "../fix_u96v2_pwrseq_simple.patch"
   patch -Np1 < "../add-device-tree-for-ultra96-v2.patch"
-  patch -Np1 < "../use-lima-driver.patch"
 
-  cat "${srcdir}/config" > ./.config
+  echo "Setting config..."
+  cp ../config .config
+  _make olddefconfig
+  diff -u ../config .config || :
+
+  echo "Prepared $pkgbase version $(<version)"
 }
 
 build() {
-  cd ${_srcname}
-
-  # get kernel version
-  make prepare
-  make -s kernelrelease > version
-
-  # build!
-  unset LDFLAGS
-  make ${MAKEFLAGS} Image Image.gz modules
+  cd $_srcname
+  _make Image Image.gz modules
   # Generate device tree blobs with symbols to support applying device tree overlays in U-Boot
-  make ${MAKEFLAGS} DTC_FLAGS="-@" dtbs
+  _make ${MAKEFLAGS} DTC_FLAGS="-@" dtbs
 }
 
 _package() {
-  pkgdesc="The Linux Kernel and modules - ${_desc}"
-  depends=('coreutils' 'linux-firmware' 'kmod' 'mkinitcpio>=0.7')
-  optdepends=('crda: to set the correct wireless channels of your country')
-  provides=("linux=${pkgver}" "WIREGUARD-MODULE")
-  replaces=('linux-armv8')
+  pkgdesc="The $pkgdesc kernel and modules"
+  depends=(
+    coreutils
+    initramfs
+    kmod
+  )
+  optdepends=(
+    'wireless-regdb: to set the correct wireless channels of your country'
+    'linux-firmware: firmware images needed for some devices'
+  )
+  provides=(
+    "linux=${pkgver}"
+    WIREGUARD-MODULE
+  )
   conflicts=('linux')
-  backup=("etc/mkinitcpio.d/${pkgbase}.preset")
-  install=${pkgname}.install
 
   cd $_srcname
-  local kernver="$(<version)"
-  local modulesdir="$pkgdir/usr/lib/modules/$kernver"
+  local modulesdir="$pkgdir/usr/lib/modules/$(<version)"
 
   echo "Installing boot image and dtbs..."
-  install -Dm644 arch/arm64/boot/Image{,.gz} -t "${pkgdir}/boot"
-  make INSTALL_DTBS_PATH="${pkgdir}/boot/dtbs" dtbs_install
+  # systemd expects to find the kernel here to allow hibernation
+  # https://github.com/systemd/systemd/commit/edda44605f06a41fb86b7ab8128dcf99161d2344
+  install -Dm644 "$(_make -s image_name)" "$modulesdir/vmlinuz"
+
+  # Installs dtbs into the /boot directory, so it still conflicts with the linux package
+  _make INSTALL_DTBS_PATH="${pkgdir}/boot/dtbs" dtbs_install
+
+  # Used by mkinitcpio to name the kernel
+  echo "$pkgbase" | install -Dm644 /dev/stdin "$modulesdir/pkgbase"
 
   echo "Installing modules..."
-  make INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 modules_install
+  ZSTD_CLEVEL=19 _make INSTALL_MOD_PATH="$pkgdir/usr" INSTALL_MOD_STRIP=1 \
+    DEPMOD=/doesnt/exist modules_install  # Suppress depmod
 
-  # remove build and source links
-  rm "$modulesdir"/{source,build}
-
-  # sed expression for following substitutions
-  local _subst="
-    s|%PKGBASE%|${pkgbase}|g
-    s|%KERNVER%|${kernver}|g
-  "
-
-  # install mkinitcpio preset file
-  sed "${_subst}" ../linux-zynqmp.preset |
-    install -Dm644 /dev/stdin "${pkgdir}/etc/mkinitcpio.d/${pkgbase}.preset"
-
-  # install pacman hooks
-  sed "${_subst}" ../60-linux-zynqmp.hook |
-    install -Dm644 /dev/stdin "${pkgdir}/usr/share/libalpm/hooks/60-${pkgbase}.hook"
-  sed "${_subst}" ../90-linux-zynqmp.hook |
-    install -Dm644 /dev/stdin "${pkgdir}/usr/share/libalpm/hooks/90-${pkgbase}.hook"
+  # remove build link
+  rm "$modulesdir"/build
 }
 
 _package-headers() {
-  pkgdesc="Header files and scripts for building modules for linux kernel - ${_desc}"
-  provides=("linux-headers=${pkgver}")
-  conflicts=('linux-headers')
+  pkgdesc="Headers and scripts for building modules for the $pkgdesc kernel"
+  depends=(pahole)
 
   cd $_srcname
   local builddir="$pkgdir/usr/lib/modules/$(<version)/build"
@@ -116,9 +109,6 @@ _package-headers() {
   install -Dt "$builddir/kernel" -m644 kernel/Makefile
   install -Dt "$builddir/arch/arm64" -m644 arch/arm64/Makefile
   cp -t "$builddir" -a scripts
-
-  # add xfs and shmem for aufs building
-  mkdir -p "$builddir"/{fs/xfs,mm}
 
   echo "Installing headers..."
   cp -t "$builddir" -a include
@@ -164,7 +154,7 @@ _package-headers() {
   echo "Stripping build tools..."
   local file
   while read -rd '' file; do
-    case "$(file -bi "$file")" in
+    case "$(file -Sib "$file")" in
       application/x-sharedlib\;*)      # Libraries (.so)
         strip -v $STRIP_SHARED "$file" ;;
       application/x-archive\;*)        # Libraries (.a)
@@ -176,14 +166,21 @@ _package-headers() {
     esac
   done < <(find "$builddir" -type f -perm -u+x ! -name vmlinux -print0)
 
+  echo "Stripping vmlinux..."
+  strip -v $STRIP_STATIC "$builddir/vmlinux"
+
   echo "Adding symlink..."
   mkdir -p "$pkgdir/usr/src"
   ln -sr "$builddir" "$pkgdir/usr/src/$pkgbase"
 }
 
-pkgname=("${pkgbase}" "${pkgbase}-headers")
-for _p in ${pkgname[@]}; do
-  eval "package_${_p}() {
-    _package${_p#${pkgbase}}
+pkgname=(
+  "$pkgbase"
+  "$pkgbase-headers"
+)
+for _p in "${pkgname[@]}"; do
+  eval "package_$_p() {
+    $(declare -f "_package${_p#$pkgbase}")
+    _package${_p#$pkgbase}
   }"
 done
